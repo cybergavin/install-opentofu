@@ -1,0 +1,115 @@
+name: cybergavin/install-opentofu
+description: This action installs the specified version of OpenTofu.
+inputs:
+  version:
+    description: The version of OpenTofu to install
+    required: false
+    default: "1.9.0"
+  architecture:
+    description: The architecture to install (amd64, arm64)
+    required: false
+    default: "amd64"
+  disable-checksum-validation:
+    description: Disable SHA256 checksum validation (not recommended)
+    required: false
+    default: "false"
+outputs:
+  cache-hit:
+    description: Whether OpenTofu installer was found in cache
+    value: ${{ steps.cache-opentofu.outputs.cache-hit }}
+  installed_version:
+    description: The version of OpenTofu that was installed
+    value: ${{ steps.tofu-install-verify.outputs.installed_version }}
+  checksum_failure:
+    description: Whether the checksum validation was successful
+    value: ${{ steps.tofu-checksum-validation.outputs.checksum_failure }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup OpenTofu cache
+      id: cache-opentofu
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ~/.cache/opentofu
+        key: opentofu-${{ inputs.version }}-${{ inputs.architecture }}
+
+    - name: Download OpenTofu and checksums if not cached
+      id: tofu-download
+      if: steps.cache-opentofu.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        mkdir -p ~/.cache/opentofu
+        cd ~/.cache/opentofu
+        
+        # Define file names
+        PACKAGE_FILE="tofu_${{ inputs.version }}_${{ inputs.architecture }}.deb"
+        CHECKSUMS_FILE="tofu_${{ inputs.version }}_SHA256SUMS"
+        
+        # Download OpenTofu package
+        echo "Downloading OpenTofu ${PACKAGE_FILE}..."
+        curl -L --connect-timeout 30 --retry 3 --retry-delay 5 \
+          -o "${PACKAGE_FILE}" \
+          "https://github.com/opentofu/opentofu/releases/download/v${{ inputs.version }}/${PACKAGE_FILE}"
+        
+        # Download checksums file
+        echo "Downloading checksum file..."
+        curl -L --connect-timeout 30 --retry 3 --retry-delay 5 \
+          -o "${CHECKSUMS_FILE}" \
+          "https://github.com/opentofu/opentofu/releases/download/v${{ inputs.version }}/${CHECKSUMS_FILE}"
+
+    - name: Verify checksums
+      id: tofu-checksum-validation
+      if: inputs.disable-checksum-validation != 'true'
+      shell: bash
+      run: |
+        cd ~/.cache/opentofu
+        PACKAGE_FILE="tofu_${{ inputs.version }}_${{ inputs.architecture }}.deb"
+        CHECKSUMS_FILE="tofu_${{ inputs.version }}_SHA256SUMS"
+        
+        # Verify the package checksum
+        echo "Verifying package checksum..."
+        EXPECTED_CHECKSUM=$(grep "${PACKAGE_FILE}" "${CHECKSUMS_FILE}" | cut -d ' ' -f 1)
+        ACTUAL_CHECKSUM=$(sha256sum "${PACKAGE_FILE}" | cut -d ' ' -f 1)
+        
+        if [ -z "${EXPECTED_CHECKSUM}" ]; then
+          echo "Error: Could not find checksum for ${PACKAGE_FILE} in ${CHECKSUMS_FILE}"
+          echo "checksum_failure=true" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        if [ "${EXPECTED_CHECKSUM}" != "${ACTUAL_CHECKSUM}" ]; then
+          echo "Error: Checksum verification failed!"
+          echo "Expected: ${EXPECTED_CHECKSUM}"
+          echo "Actual:   ${ACTUAL_CHECKSUM}"
+          echo "checksum_failure=true" >> $GITHUB_OUTPUT
+          exit 1
+        else
+          echo "Checksum verification successful!"
+          echo "SHA256: ${ACTUAL_CHECKSUM}"
+          echo "checksum_failure=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Install OpenTofu
+      id: tofu-install
+      shell: bash
+      run: |
+        PACKAGE_FILE="tofu_${{ inputs.version }}_${{ inputs.architecture }}.deb"
+        sudo dpkg -i ~/.cache/opentofu/${PACKAGE_FILE} || sudo apt-get install -f -y
+
+    - name: Verify OpenTofu installation
+      id: tofu-install-verify
+      shell: bash
+      run: |
+        INSTALLED_VERSION=$(tofu --version | grep -wo "v${{ inputs.version }}")
+        if [ -z "${INSTALLED_VERSION}" ]; then
+          echo "Error: OpenTofu v${{ inputs.version }} installation failed!"
+          exit 1
+        fi
+        echo "OpenTofu $INSTALLED_VERSION installed successfully"
+        echo "installed_version=${INSTALLED_VERSION}" >> $GITHUB_OUTPUT
+
+# The icon and color are used in the GitHub Actions UI to represent this action
+branding:
+  icon: 'terminal'
+  color: 'green'

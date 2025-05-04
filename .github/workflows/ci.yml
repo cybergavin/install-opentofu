@@ -115,8 +115,8 @@ jobs:
       - name: Assert OpenTofu version
         run: |
           echo "Installed OpenTofu version: '${{ steps.install-tofu-1.outputs.installed_version }}'"
-          if [[ "${{ steps.install-tofu-1.outputs.installed_version }}" != "${{ needs.shared-variables.outputs.default-opentofu-version }}" ]]; then
-            echo "❌ OpenTofu version mismatch (expected: ${{ needs.shared-variables.outputs.default-opentofu-version }}, got: ${{ steps.install-tofu-1.outputs.installed_version }})"
+          if [[ "${{ steps.install-tofu-1.outputs.installed_version }}" != "v${{ needs.shared-variables.outputs.default-opentofu-version }}" ]]; then
+            echo "❌ OpenTofu version mismatch (expected: v${{ needs.shared-variables.outputs.default-opentofu-version }}, got: v${{ steps.install-tofu-1.outputs.installed_version }})"
             exit 1
           else
             echo "✅ OpenTofu version matches expected version"

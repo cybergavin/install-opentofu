@@ -16,7 +16,7 @@ inputs:
 outputs:
   cache-hit:
     description: Whether OpenTofu installer was found in cache
-    value: ${{ steps.cache-opentofu.outputs.cache-hit }}
+    value: ${{ steps.opentofu-cache-restore.outputs.cache-hit }}
   installed_version:
     description: The version of OpenTofu that was installed
     value: ${{ steps.tofu-install-verify.outputs.installed_version }}
@@ -41,7 +41,6 @@ runs:
         path: ~/.cache/opentofu
         key: ${{ env.CACHE_KEY }}
         restore-keys: opentofu-${{ runner.os }}-
-        save-always: true
 
     - name: Download OpenTofu and checksums if not cached
       id: tofu-download
@@ -72,7 +71,7 @@ runs:
       uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ~/.cache/opentofu
-        key: ${{ steps.opentofu-cache-restore.outputs.cacche-primary-key }}
+        key: ${{ steps.opentofu-cache-restore.outputs.cache-primary-key }}
 
     - name: Verify checksums
       id: tofu-checksum-validation

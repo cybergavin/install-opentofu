@@ -27,12 +27,21 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Set variables
+      shell: bash
+      run: |
+        echo "TOFU_VERSION=${{ inputs.version }}" >> $GITHUB_ENV
+        echo "TOFU_ARCH=${{ inputs.architecture }}" >> $GITHUB_ENV
+        echo "CACHE_KEY=opentofu-${{ runner.os }}-${{ inputs.version }}-${{ inputs.architecture }}" >> $GITHUB_ENV
+
     - name: Setup OpenTofu cache
       id: cache-opentofu
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ~/.cache/opentofu
-        key: opentofu-${{ inputs.version }}-${{ inputs.architecture }}
+        key: ${{ env.CACHE_KEY }}
+        restore-keys: opentofu-${{ runner.os }}-
+        save-always: true
 
     - name: Download OpenTofu and checksums if not cached
       id: tofu-download
@@ -95,7 +104,7 @@ runs:
       shell: bash
       run: |
         PACKAGE_FILE="tofu_${{ inputs.version }}_${{ inputs.architecture }}.deb"
-        sudo dpkg -i ~/.cache/opentofu/${PACKAGE_FILE} || sudo apt-get install -f -y
+        sudo dpkg -i ~/.cache/opentofu/${PACKAGE_FILE}
 
     - name: Verify OpenTofu installation
       id: tofu-install-verify
